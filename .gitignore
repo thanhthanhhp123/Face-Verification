@@ -1,0 +1,9 @@
+models/
+Face Dataset/
+
+# Python
+__pycache__/
+*.pyc
+
+# VSCode
+.vscode/
