@@ -1,5 +1,6 @@
 models/
 Face Dataset/
+papers/
 
 # Python
 __pycache__/
