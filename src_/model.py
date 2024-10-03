@@ -52,3 +52,12 @@ class FaceVerification:
     def load(self):
         self.classifier.load_state_dict(torch.load(self.save_path + 'classifier.pth'))
         self.extractor.load_state_dict(torch.load(self.save_path + 'extractor.pth'))
+
+if __name__ == '__main__':
+    from modules import ArcFaceFeatureExtractor, Classify
+    from torch.utils.data import DataLoader
+    from torchvision import datasets, transforms
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    extractor = ArcFaceFeatureExtractor()
+    classifier = Classify()
