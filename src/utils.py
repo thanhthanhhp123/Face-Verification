@@ -11,12 +11,14 @@ def draw_boxes(image, boxes):
         draw.rectangle(box.tolist(), outline=(255, 0, 0), width=6)
     return image
 
-def get_faces(image, mtcnn_model):
+def _get_faces(image, mtcnn_model):
     boxes, _ = mtcnn_model.detect(image)
     if boxes is not None:
         faces = [image.crop(box) for box in boxes]
         return faces, boxes
     return None, None
+def get_faces(image):
+    pass
 
 def get_embedding(embed_model, face, transforms, device):
     face = transforms(face).unsqueeze(0).to(device)

@@ -47,6 +47,7 @@ class FaceVerification():
         self.criterion = nn.CrossEntropyLoss()
 
     def train(self, train_loader, num_epochs):
+        losses = []
         for epoch in range(num_epochs):
             self.extractor.train()
             self.classifier.train()
@@ -58,7 +59,8 @@ class FaceVerification():
                 self.extactor_opt.zero_grad()
                 self.classifier_opt.zero_grad()
 
-                embeddings = self.extractor(images)
+                face = self.tracker(images)
+                embeddings = self.extractor(face)
                 outputs = self.classifier(embeddings)
 
                 loss = self.criterion(outputs, labels)
@@ -71,6 +73,7 @@ class FaceVerification():
 
                 total_loss += loss.item()
             logging.info(f'Epoch {epoch}/{num_epochs}, Loss: {total_loss/len(train_loader)}')
+            torch.save(losses, os.path.join(pwd_, 'losses.npy'))
             self.save(path=os.path.join(pwd_, 'model.pth'))
 
     def evaluate(self, test_loader):
