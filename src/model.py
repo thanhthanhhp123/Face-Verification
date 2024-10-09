@@ -7,6 +7,7 @@ import logging
 import cv2
 import os
 import warnings
+import copy
 from facenet_pytorch import InceptionResnetV1, MTCNN
 from .modules import Extractor, Classifier, Tracker
 from .utils import *
@@ -18,11 +19,12 @@ pwd_ = os.path.dirname(pwd)
 
 class FaceVerification():
     def __init__(self, num_classes, device= 'cuda' if torch.cuda.is_available() else 'cpu',
-                 train_backbone=False):
+                 train_backbone=False, step_lr=False):
         self.device = device
-        self.extractor = Extractor(InceptionResnetV1(pretrained='vggface2', classify=False)).to(self.device)
-        self.classifier = Classifier(num_classes).to(self.device)
-        self.tracker = Tracker(MTCNN(image_size=160, margin=0, min_face_size=20)).to(self.device)
+        self.step_lr = step_lr
+        self.extractor = InceptionResnetV1(pretrained='vggface2', classify=False).to(device)
+        self.classifier = Classifier(num_classes).to(device)
+        self.mtcnn = MTCNN(keep_all=True, device=device)
         self.transforms = v2.Compose([
                 v2.RandomHorizontalFlip(),
                 v2.RandomRotation(15),
@@ -41,8 +43,17 @@ class FaceVerification():
             for param in self.extractor.parameters():
                 param.requires_grad = False
 
-        self.extactor_opt = torch.optim.Adam(self.extractor.parameters(), lr=0.0001)
-        self.classifier_opt = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
+        self.extactor_opt = torch.optim.Adam(self.extractor.parameters(), lr=0.001)
+        self.classifier_opt = torch.optim.Adam(self.classifier.parameters(), lr=0.01)
+        if step_lr:
+            self.extactor_opt = torch.optim.Adam(self.extractor.parameters(), lr=0.001)
+            self.classifier_opt = torch.optim.Adam(self.classifier.parameters(), lr=0.01)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.extactor_opt, step_size=5, gamma=0.1)
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.classifier_opt, step_size=5, gamma=0.1)
+        else:
+            self.extactor_opt = torch.optim.Adam(self.extractor.parameters(), lr=0.0001)
+            self.classifier_opt = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
+
 
         self.criterion = nn.CrossEntropyLoss()
 
@@ -58,9 +69,7 @@ class FaceVerification():
 
                 self.extactor_opt.zero_grad()
                 self.classifier_opt.zero_grad()
-
-                face = self.tracker(images)
-                embeddings = self.extractor(face)
+                embeddings = self.extractor(images)
                 outputs = self.classifier(embeddings)
 
                 loss = self.criterion(outputs, labels)
@@ -69,12 +78,15 @@ class FaceVerification():
                 self.extactor_opt.step()
                 if not self.train_backbone:
                     self.extactor_opt.step()
+                
+                if not self.step_lr:
+                    self.scheduler.step()
                 self.classifier_opt.step()
 
                 total_loss += loss.item()
             logging.info(f'Epoch {epoch}/{num_epochs}, Loss: {total_loss/len(train_loader)}')
             torch.save(losses, os.path.join(pwd_, 'losses.npy'))
-            self.save(path=os.path.join(pwd_, 'model.pth'))
+            self.save(path=os.path.join(pwd_, 'models/model.pth'))
 
     def evaluate(self, test_loader):
         self.extractor.eval()
