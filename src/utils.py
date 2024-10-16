@@ -1,58 +1,65 @@
-import cv2
+import torch
+import torch.nn as nn
+import torchvision.models as models
+import torchvision.transforms as transforms
+
+def calculate_accuracy(y_pred, y_true):
+    """
+    Args:
+    y_pred: Predicted probabilities or logits (shape: [batch_size, num_classes])
+    y_true: Ground truth labels (shape: [batch_size])
+    
+    Returns:
+    Accuracy
+    """
+    # Chọn lớp có xác suất cao nhất
+    _, y_pred_classes = torch.max(y_pred, dim=1)
+    
+    # So sánh với nhãn thực tế
+    correct = (y_pred_classes == y_true).sum().item()
+    
+    return correct / y_true.size(0)
+
 import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image, ImageDraw
 import torch
 
+class EarlyStopping:
+    def __init__(self, patience=5, verbose=False):
+        """
+        Args:
+            patience (int): Số epochs không cải thiện trước khi dừng huấn luyện.
+            verbose (bool): In thông báo khi cải thiện.
+        """
+        self.patience = patience
+        self.verbose = verbose
+        self.counter = 0
+        self.best_loss = np.inf
+        self.best_acc = 0.0
+        self.early_stop = False
 
-def draw_boxes(image, boxes):
-    draw = ImageDraw.Draw(image)
-    for box in boxes:
-        draw.rectangle(box.tolist(), outline=(255, 0, 0), width=6)
-    return image
-
-def _get_faces(image, mtcnn_model):
-    boxes, _ = mtcnn_model.detect(image)
-    if boxes is not None:
-        faces = [image.crop(box) for box in boxes]
-        return faces, boxes
-    return None, None
-def get_faces(image):
-    pass
-
-def get_embedding(embed_model, face, transforms, device):
-    face = transforms(face).unsqueeze(0).to(device)
-    embedding = embed_model(face)
-    return embedding
-
-def get_prediction(embedding):
-    with torch.no_grad():
-        prediction = torch.argmax(embedding, dim=1).item()
-    return prediction
-
-def get_name(dataset, prediction):
-    return dataset.classes[prediction]
-
-def recognize(image, transforms):
-    faces, boxes = get_faces(image)
-    if faces is not None:
-        for face, box in zip(faces, boxes):
-            embedding = get_embedding(face, transforms)
-            prediction = get_prediction(embedding)
-            name = get_name(prediction)
-            image = draw_boxes(image, [box])
-            draw = ImageDraw.Draw(image)
-            draw.text((box[0], box[1]), name)
-    return image
-
-def tracking(mtcnn_model,image):
-    boxes, _ = mtcnn_model.detect(image)
-    if boxes is not None:
-        num_faces = len(boxes)
-        faces_infor = {}
-        for face, box in zip(range(num_faces), boxes):
-            faces_infor[face] = {'box': box}
-        return faces_infor
-    else:
-        print('No face detected')
-    return None
+    def __call__(self, val_loss, val_acc):
+        if val_loss < self.best_loss:
+            self.best_loss = val_loss
+            self.counter = 0
+            if self.verbose:
+                print(f"Loss improved to {val_loss:.6f}.")
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f"Loss did not improve. Counter: {self.counter}/{self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+                print("Early stopping triggered!")
+        
+        if val_acc > self.best_acc:
+            self.best_acc = val_acc
+            self.counter = 0
+            if self.verbose:
+                print(f"Accuracy improved to {val_acc:.6f}.")
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f"Accuracy did not improve. Counter: {self.counter}/{self.patience}")
+            if self.counter >= self.patience:
+                self.early_stop = True
+                print("Early stopping triggered!")
