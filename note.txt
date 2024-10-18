@@ -18,4 +18,28 @@ optimizer = torch.optim.Adam([
     {'params': facenet_params, 'lr': 1e-4},
     {'params': classifier_params, 'lr': 1e-3}
 ])
-2. 
+2. models\best_model_812_1910.pth
+class FaceNetClassifierWithAugFMap(nn.Module):
+    def __init__(self, num_classes, aug_layer = None):
+        super(FaceNetClassifierWithAugFMap, self).__init__()
+        self.extractor = feature_agg
+        self.aug_layer = None if aug_layer is None else aug_layer
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(1792, num_classes)
+        )
+    
+    def forward(self, x):
+        features = self.extractor(x)['block8']
+        if self.aug_layer is not None:
+            features = self.aug_layer(features)
+        # features = features.view(features.size(0), -1)
+        x = self.fc(features)
+        return x
+facenet_params = list(facenet.extractor.parameters())
+classifier_params = list(facenet.fc.parameters())
+optimizer = torch.optim.Adam([
+    {'params': facenet_params, 'lr': 1e-4},
+    {'params': classifier_params, 'lr': 1e-3}
+])

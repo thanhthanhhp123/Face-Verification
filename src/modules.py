@@ -31,49 +31,46 @@ import copy
 #         return x
 
 class AugmentationLayer(nn.Module):
-    def __init__(self, p: float):
+    def __init__(self, p=0.3, noise_std=0.05):
         """
-        Args:
-        p: Percentage of channels to be augmented (0 <= p <= 1)
+        p: phần trăm channels được augment
+        noise_std: Độ lệch chuẩn của Gaussian noise
         """
         super(AugmentationLayer, self).__init__()
         self.p = p
-
-        # Define the transformations (without noise)
-        self.transform = transforms.Compose([
-            transforms.RandomResizedCrop(size=(224, 224), scale=(0.8, 1.0)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=(0, 180)),
-            transforms.GaussianBlur(kernel_size=(5, 5), sigma=(0.1, 2.0))
+        self.noise_std = noise_std
+        
+        # Các phép augment dành cho feature maps
+        self.augment_transforms = nn.ModuleList([
+            transforms.RandomResizedCrop((3, 3)),    
+            transforms.RandomHorizontalFlip(p=0.5),  
+            transforms.RandomRotation(180),           
+            transforms.GaussianBlur(kernel_size=(3, 3))  
         ])
 
-    def forward(self, M):
+    def forward(self, x):
         """
-        M: Input feature map of shape (b, c, h, w)
-        Returns:
-        M': Augmented feature map
+        x: Feature map có kích thước (batch_size, num_channels, height, width)
         """
-        b, c, h, w = M.shape
-        
-        num_channels_to_augment = int(self.p * c)
-        channel_indices = torch.randperm(c)[:num_channels_to_augment]
+        batch_size, num_channels, h, w = x.size()
 
-        M_aug = M.clone()
+        num_aug_channels = int(self.p * num_channels)
+        aug_indices = torch.randperm(num_channels)[:num_aug_channels]
 
-        for idx in channel_indices:
-            for batch_idx in range(b):
+        for idx in aug_indices:
+            channel = x[:, idx]
 
-                channel_map = M[batch_idx, idx].unsqueeze(0)
-                channel_map = transforms.ToPILImage()(channel_map) 
-                channel_map = self.transform(channel_map)
-                channel_map = transforms.ToTensor()(channel_map)
+            for aug_transform in self.augment_transforms:
+                channel = aug_transform(channel)
 
-                channel_map = channel_map + torch.randn_like(channel_map) * 0.05
-                
-                M_aug[batch_idx, idx] = channel_map.squeeze(0)  
+            x[:, idx] = channel 
 
-        return M_aug
-    
+        if self.noise_std > 0:
+            noise = torch.randn_like(x) * self.noise_std
+            x = x + noise
+
+        return x
+
 
 class NetworkFeatureAggregator(torch.nn.Module):
     """Efficient extraction of network features."""
@@ -186,3 +183,15 @@ class Preprocessing(torch.nn.Module):
         for module, feature in zip(self.preprocessing_modules, features):
             _features.append(module(feature))
         return torch.stack(_features, dim=1)
+    
+
+if __name__ == "__main__":
+    # Sử dụng Augmentation Layer trong quá trình training
+    augment_layer = AugmentationLayer(p=0.3, noise_std=0.05)
+
+    # Giả sử feature map có kích thước (batch_size, num_channels, height, width)
+    feature_map = torch.randn(64, 1792, 3, 3)
+
+    # Augment feature map
+    augmented_feature_map = augment_layer(feature_map)
+    print(augmented_feature_map.shape)  # torch.Size([64, 1792, 3, 3])
