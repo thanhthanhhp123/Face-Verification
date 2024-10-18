@@ -33,8 +33,8 @@ import copy
 class AugmentationLayer(nn.Module):
     def __init__(self, p=0.3, noise_std=0.05):
         """
-        p: phần trăm channels được augment
-        noise_std: Độ lệch chuẩn của Gaussian noise
+        Args:
+        p: Percentage of channels to be augmented (0 <= p <= 1)
         """
         super(AugmentationLayer, self).__init__()
         self.p = p
@@ -50,7 +50,9 @@ class AugmentationLayer(nn.Module):
 
     def forward(self, x):
         """
-        x: Feature map có kích thước (batch_size, num_channels, height, width)
+        x: Input feature map of shape (b, c, h, w)
+        Returns:
+        x': Augmented feature map
         """
         batch_size, num_channels, h, w = x.size()
 
