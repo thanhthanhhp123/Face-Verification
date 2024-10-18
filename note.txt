@@ -1,0 +1,21 @@
+1. models\best_model_767_1810.pth
+class FaceNetClassifier(nn.Module):
+    def __init__(self, num_classes):
+        super(FaceNetClassifier, self).__init__()
+        self.extractor = feature_agg
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool2d((3, 3)),
+            nn.Flatten(),
+            nn.Linear(16128, num_classes)
+        )
+    
+    def forward(self, x):
+        features = self.extractor(x)['block8']
+        # features = features.view(features.size(0), -1)
+        x = self.fc(features)
+        return x
+optimizer = torch.optim.Adam([
+    {'params': facenet_params, 'lr': 1e-4},
+    {'params': classifier_params, 'lr': 1e-3}
+])
+2. 
