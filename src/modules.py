@@ -186,6 +186,25 @@ class Preprocessing(torch.nn.Module):
             _features.append(module(feature))
         return torch.stack(_features, dim=1)
     
+class FaceNetClassifierWithAugFMap(nn.Module):
+    def __init__(self, num_classes, feature_agg, aug_layer = None):
+        super(FaceNetClassifierWithAugFMap, self).__init__()
+        self.extractor = feature_agg
+        self.aug_layer = None if aug_layer is None else aug_layer
+        self.fc = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
+            nn.Flatten(),
+            nn.Linear(1792, num_classes)
+        )
+    
+    def forward(self, x):
+        features = self.extractor(x)['block8']
+        if self.aug_layer is not None:
+            features = self.aug_layer(features)
+        # features = features.view(features.size(0), -1)
+        x = self.fc(features)
+        return x
+    
 
 if __name__ == "__main__":
     # Sử dụng Augmentation Layer trong quá trình training
